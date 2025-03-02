@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Yatırım Sayfası</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            padding: 20px;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .percentage-bar {
+            height: 20px;
+            background-color: #e9ecef;
+            margin-top: 5px;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .percentage-fill {
+            height: 100%;
+            background-color: #0d6efd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- Display portfolio name at the top with a fallback if not provided -->
+    <h1 class="text-center mb-4" th:text="${portfolioName}">Portfolio</h1>
+        <span th:if="${portfolio != null}" th:text="${portfolio.portfolioname}">Portfolio Name</span>
+        <span th:if="${portfolio == null && portfolioName != null}" th:text="${portfolioName}">Portfolio Name</span>
+        <span th:if="${portfolio == null && portfolioName == null}">Portfolio</span>
+    </h1>
+
+    <div style="display:none">
+        <span th:each="investment : ${investments}"
+              th:attr="data-value=${investment.quantity * investment.price},
+                       data-name=${investment.investmentName}"
+              class="investment-data"></span>
+    </div>
+    <!-- Toplam Değer ve Yüzdesel Dağılım -->
+    <div class="alert alert-primary text-center">
+        <h4>Total Portfolio Value: <span id="totalValue">0.00</span> ₺</h4>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Portfolio Distribution</div>
+        <div class="card-body">
+            <ul class="list-group" id="distributionList">
+                <!-- Will be filled by JavaScript -->
+            </ul>
+        </div>
+    </div>
+
+    <!-- Yatırım ekleme formu -->
+    <div class="card">
+        <div class="card-header">Add New Investment</div>
+        <div class="card-body">
+            <form th:action="@{/portfolio/{portfolioId}/investments(portfolioId=${portfolioId})}" method="post">
+                <div class="mb-3">
+                    <label for="investmentName" class="form-label">Investment Name:</label>
+                    <input type="text" id="investmentName" name="investmentName" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="quantity" class="form-label">Quantity:</label>
+                    <input type="number" id="quantity" name="quantity" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="price" class="form-label">Price:</label>
+                    <input type="number" step="0.01" id="price" name="price" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-success w-100">Add Investment</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Yatırımlar Listesi -->
+    <h2 class="mb-3">Your Investments</h2>
+    <div class="row">
+        <div th:each="investment : ${investments}" class="col-md-4">
+            <div class="card">
+                <div class="card-header" th:text="${investment.investmentName}">
+                    <!-- Percentage badge will be added by JavaScript -->
+                </div>
+                <div class="card-body">
+                    <p><strong>Quantity:</strong> <span th:text="${#numbers.formatInteger(investment.quantity, 1, 'POINT')}"></span></p>
+                    <p><strong>Price:</strong> <span th:text="${#numbers.formatDecimal(investment.price, 1, 'POINT', 2, 'POINT')}"></span> ₺</p>
+                    <p><strong>Total Value:</strong> <span th:text="${#numbers.formatDecimal(investment.quantity * investment.price, 1, 'POINT', 2, 'POINT')}"></span> ₺</p>
+                    <p><strong>Date of Create:</strong> <span th:text="${#dates.format(investment.createdAt, 'dd-MM-yyyy HH:mm')}"></span></p>
+                    <p><strong>Date of Update:</strong> <span th:text="${#dates.format(investment.updatedAt, 'dd-MM-yyyy HH:mm')}"></span></p>
+                    <form th:action="@{/portfolio/{portfolioId}/investments/{investmentId}/delete(portfolioId=${portfolioId}, investmentId=${investment.id})}" method="post">
+                        <button type="submit" class="btn btn-danger w-100">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get all investment data
+        const investmentElements = document.querySelectorAll('.investment-data');
+        const investments = [];
+        let totalValue = 0;
+
+        // Calculate total value
+        investmentElements.forEach(el => {
+            const value = parseFloat(el.getAttribute('data-value'));
+            const name = el.getAttribute('data-name');
+
+            if (!isNaN(value)) {
+                totalValue += value;
+                investments.push({
+                    name: name,
+                    value: value
+                });
+            }
+        });
+
+        // Format number with thousand separators
+        function formatNumber(num) {
+            return num.toLocaleString('tr-TR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Update the total value display with thousand separators
+        document.getElementById('totalValue').textContent = formatNumber(totalValue);
+
+        // Update the distribution list
+        const distributionList = document.getElementById('distributionList');
+        distributionList.innerHTML = '';
+
+        investments.forEach(inv => {
+            const percentage = totalValue > 0 ? (inv.value / totalValue * 100) : 0;
+
+            const li = document.createElement('li');
+            li.className = 'list-group-item';
+
+            li.innerHTML = `
+                <div class="d-flex justify-content-between align-items-center">
+                    <span>${inv.name}</span>
+                    <span>
+                        <strong>${formatNumber(inv.value)}</strong> ₺
+                        (${percentage.toFixed(2)}%)
+                    </span>
+                </div>
+                <div class="percentage-bar">
+                    <div class="percentage-fill" style="width: ${percentage}%">
+                        ${percentage.toFixed(1)}%
+                    </div>
+                </div>
+            `;
+
+            distributionList.appendChild(li);
+        });
+
+        // Update investment cards with percentage badges
+        const cardHeaders = document.querySelectorAll('.card-header');
+        investments.forEach((inv, index) => {
+            const percentage = totalValue > 0 ? (inv.value / totalValue * 100) : 0;
+
+            // Find the matching card headers
+            const relevantCardHeaders = Array.from(cardHeaders).filter(header =>
+                header.textContent.trim() === inv.name
+            );
+
+            relevantCardHeaders.forEach(header => {
+                const badge = document.createElement('span');
+                badge.className = 'badge bg-primary ms-2';
+                badge.textContent = `${percentage.toFixed(2)}%`;
+                header.appendChild(badge);
+            });
+        });
+    });
+</script>
+</body>
+</html>
